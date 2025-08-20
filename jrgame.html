@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ラン&ジャンプゲーム</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #87CEEB; /* 背景色を設定しておく */
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+<script>
+const config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 600,
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 1000 },
+            debug: false
+        }
+    },
+    scene: {
+        preload: preload,
+        create: create,
+        update: update
+    }
+};
+
+const game = new Phaser.Game(config);
+
+let player;
+let obstacles;
+let score = 0;
+let scoreText;
+let gameOver = false;
+let jumpCount = 0;  // ジャンプの回数をカウントする変数
+const maxJumps = 2; // 最大ジャンプ回数（ダブルジャンプ）
+let downKey; // ↓キー用の変数
+
+function preload() {
+    // 画像の読み込み
+    this.load.image('sky', 'sky.png'); // 背景
+    this.load.image('ground', 'ground.png'); // 地面
+    this.load.image('player', 'playerdef.png'); // プレイヤーのパスを修正
+    this.load.image('obstacle', 'FERIND.png'); // 障害物
+}
+
+function create() {
+    // 背景を作成 (画面全体に表示)
+    this.add.image(400, 300, 'sky').setDisplaySize(800, 600);
+
+    // 地面の作成
+    const ground = this.add.tileSprite(400, 568, 800, 64, 'ground');
+    this.physics.add.existing(ground);
+    ground.body.allowGravity = false;
+    ground.body.immovable = true;
+
+    // プレイヤーの作成
+    player = this.physics.add.sprite(100, 450, 'player');
+    player.setCollideWorldBounds(true);
+    player.setBounce(0.2);
+    player.setScale(0.5);
+
+    // 障害物グループ
+    obstacles = this.physics.add.group();
+
+    // スペースキーの入力設定
+    this.input.keyboard.on('keydown-SPACE', jump, this);
+
+    // ↓キーを設定
+    downKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
+
+    // スコアの表示
+    scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
+
+    // 衝突判定
+    this.physics.add.collider(player, ground);
+    this.physics.add.collider(obstacles, ground);
+    this.physics.add.overlap(player, obstacles, hitObstacle, null, this);
+
+    // 最初の障害物を生成
+    addObstacle.call(this);
+}
+
+function update() {
+    if (player.body.touching.down) {
+        jumpCount = 0; // 地面に接触したらジャンプ回数をリセット
+    }
+    if (gameOver) {
+        return;
+    }
+
+    // ↓キーが押された場合
+    if (downKey.isDown) {
+        player.setVelocityY(1000);  // 一気に落ちる速度
+    }
+
+    // 障害物がプレイヤーを通過したかを確認
+    obstacles.getChildren().forEach(function(obstacle) {
+        if (obstacle.x < player.x && !obstacle.passed) {
+            obstacle.passed = true; // 通過したことを記録
+            score += 1;
+            scoreText.setText('Score: ' + score);
+        }
+    });
+}
+
+function jump() {
+    if (jumpCount < maxJumps) {
+        player.setVelocityY(-500);  // ジャンプ力
+        jumpCount++; // ジャンプ回数を増やす
+    }
+}
+
+function addObstacle() {
+    // 障害物を右から左に移動させる
+    const obstacleY = Phaser.Math.Between(450, 500); // Y座標を450から500の間で設定
+    const obstacle = obstacles.create(800, obstacleY, 'obstacle');
+    obstacle.setVelocityX(-300);  // 左に移動（速度を上げる）
+    obstacle.setCollideWorldBounds(false);  // 画面外へ消える
+    obstacle.setBounce(1);
+    obstacle.setScale(0.5);
+    obstacle.passed = false; // 通過フラグを初期化
+
+obstacle.body.setSize(30, 30); // 幅30、高さ30のサイズに変更（適宜調整）
+
+    // 次の障害物の生成タイミングをランダムに変更（間隔を短く）
+    this.time.addEvent({
+        delay: Phaser.Math.Between(300, 1000),  // 0.5秒から1秒の間でランダムな間隔
+        callback: addObstacle,
+        callbackScope: this,
+        loop: false
+    });
+}
+
+function hitObstacle(player, obstacle) {
+    // ゲームオーバー処理
+    this.physics.pause();
+    player.setTint(0xff0000);
+    gameOver = true;
+    scoreText.setText('Game Over! Score: ' + score);
+}
+</script>
+</body>
+</html>
