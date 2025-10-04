@@ -25,6 +25,11 @@ const config = {
     type: Phaser.AUTO,
     width: 800,
     height: 600,
+    // スマホの画面サイズに合わせる設定を追加
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    },
     physics: {
         default: 'arcade',
         arcade: {
@@ -49,12 +54,13 @@ let gameOver = false;
 let jumpCount = 0;  // ジャンプの回数をカウントする変数
 const maxJumps = 2; // 最大ジャンプ回数（ダブルジャンプ）
 let downKey; // ↓キー用の変数
+let swipeStartPoint = null; // スワイプ開始点を記録する変数
 
 function preload() {
     // 画像の読み込み
     this.load.image('sky', 'sky.png'); // 背景
     this.load.image('ground', 'ground.png'); // 地面
-    this.load.image('player', 'playerdef.png'); // プレイヤーのパスを修正
+    this.load.image('player', 'playerdef.png'); // プレイヤー
     this.load.image('obstacle', 'FERIND.png'); // 障害物
 }
 
@@ -77,11 +83,42 @@ function create() {
     // 障害物グループ
     obstacles = this.physics.add.group();
 
-    // スペースキーの入力設定
+    // --- PC向けキーボード入力設定 (元のまま) ---
     this.input.keyboard.on('keydown-SPACE', jump, this);
-
-    // ↓キーを設定
     downKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
+
+    // --- スマホ向けタッチ入力設定 (ここから追加) ---
+
+    // 画面がタップされた時の処理
+    this.input.on('pointerdown', function (pointer) {
+        if (gameOver) return;
+        jump(); // まずはジャンプを実行
+        // スワイプ操作の開始点を記録
+        swipeStartPoint = { x: pointer.x, y: pointer.y };
+    }, this);
+
+    // 画面上で指が動いた時の処理 (スワイプ)
+    this.input.on('pointermove', function (pointer) {
+        // 指が押されていて、かつスワイプの開始点が記録されている場合
+        if (pointer.isDown && swipeStartPoint) {
+            const swipeDistanceY = pointer.y - swipeStartPoint.y;
+            // 下に50ピクセル以上スワイプされたら急降下と判定
+            if (swipeDistanceY > 50) {
+                if (!gameOver) {
+                    player.setVelocityY(1000); // 急降下
+                    swipeStartPoint = null; // 一度実行したらリセット
+                }
+            }
+        }
+    }, this);
+
+    // 画面から指が離れた時の処理
+    this.input.on('pointerup', function (pointer) {
+        // スワイプの開始点をリセット
+        swipeStartPoint = null;
+    }, this);
+
+    // --- タッチ入力設定 (ここまで) ---
 
     // スコアの表示
     scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
@@ -103,7 +140,7 @@ function update() {
         return;
     }
 
-    // ↓キーが押された場合
+    // ↓キーが押された場合 (PC向け)
     if (downKey.isDown) {
         player.setVelocityY(1000);  // 一気に落ちる速度
     }
@@ -119,6 +156,7 @@ function update() {
 }
 
 function jump() {
+    if (gameOver) return;
     if (jumpCount < maxJumps) {
         player.setVelocityY(-500);  // ジャンプ力
         jumpCount++; // ジャンプ回数を増やす
@@ -129,17 +167,17 @@ function addObstacle() {
     // 障害物を右から左に移動させる
     const obstacleY = Phaser.Math.Between(450, 500); // Y座標を450から500の間で設定
     const obstacle = obstacles.create(800, obstacleY, 'obstacle');
-    obstacle.setVelocityX(-300);  // 左に移動（速度を上げる）
-    obstacle.setCollideWorldBounds(false);  // 画面外へ消える
+    obstacle.setVelocityX(-300);  // 左に移動
+    obstacle.setCollideWorldBounds(false);  // 画面外へ消えるようにする
     obstacle.setBounce(1);
     obstacle.setScale(0.5);
     obstacle.passed = false; // 通過フラグを初期化
 
-obstacle.body.setSize(30, 30); // 幅30、高さ30のサイズに変更（適宜調整）
+    obstacle.body.setSize(30, 30); // 当たり判定のサイズを調整
 
-    // 次の障害物の生成タイミングをランダムに変更（間隔を短く）
+    // 次の障害物の生成タイミングをランダムに変更
     this.time.addEvent({
-        delay: Phaser.Math.Between(300, 1000),  // 0.5秒から1秒の間でランダムな間隔
+        delay: Phaser.Math.Between(500, 1200),  // 0.5秒から1.2秒の間でランダムな間隔
         callback: addObstacle,
         callbackScope: this,
         loop: false
